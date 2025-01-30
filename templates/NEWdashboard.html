@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block head %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .loader {
+            border: 16px solid #f3f3f3; /* Light grey */
+            border-top: 16px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .navbar {
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,.08);
+        }
+        .navbar-brand {
+            font-weight: bold;
+            color: #3b5998 !important;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,.15);
+        }
+        .stats-card {
+            background-color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .stats-card h2 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #3b5998;
+            margin-bottom: 5px;
+        }
+        .stats-card p {
+            color: #65676b;
+            font-size: 0.9rem;
+        }
+        .session-card {
+            background-color: #ffffff;
+            padding: 20px;
+        }
+        .session-card h5 {
+            color: #3b5998;
+            font-weight: bold;
+        }
+        .session-card p {
+            margin-bottom: 10px;
+            color: #65676b;
+        }
+        .btn-primary {
+            background-color: #3b5998;
+            border-color: #3b5998;
+        }
+        .btn-primary:hover {
+            background-color: #2d4373;
+            border-color: #2d4373;
+        }
+        .btn-secondary {
+            background-color: #f0f2f5;
+            border-color: #f0f2f5;
+            color: #3b5998;
+        }
+        .btn-secondary:hover {
+            background-color: #e4e6eb;
+            border-color: #e4e6eb;
+            color: #2d4373;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <!--high level overview-->
+    <div class="container mt-5">
+        <h1 class="mb-4">Welcome!</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card">
+                    <h2>{{countsessions}}</h2>
+                    <p>survey sessions</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card">
+                    <h2>{{cracksum}}</h2>
+                    <p>cracks detected</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card">
+                    {% if latestdate %}
+                        <h2>{{latestdate}}</h2>
+                    {% else %}
+                        <h2>x-x-x</h2>
+                    {% endif %}
+                    <p>latest survey date</p>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="mb-4">Sessions</h2>
+        <div class="row">
+            {% for i in range(dates|length) %}
+            <div class="col-md-4 mb-4">
+                <div class="card session-card">
+                    <h5>{{dates[i]}} survey</h5>
+                    <p><strong>{{crackcounts[i]}} cracks detected</strong></p>
+                    <p>Venue: {{venues[i]}} <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal" data-target="#venueEditModal{{i}}">Edit</button></p>
+                    <p>Notes: {{notes[i]}} <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal" data-target="#notesEditModal{{i}}">Edit</button></p>
+                    <!-- "View Session" button trigger for redirect -->
+                    <form method="POST">
+                        <div class="form-group">
+                            <input type="hidden" name="sessioncsvpath" value="{{surveycsvpaths[i]}}">
+                        </div>
+                        <br>
+                        <button type="submit" class="btn btn-primary">View Report</button>
+                    </form>
+                </div>
+            </div>
+            <!-- venue edit popup -->
+            <div class="modal fade" id="venueEditModal{{i}}" tabindex="-1" role="dialog" aria-labelledby="venueEditModalLabel{{i}}" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                    <h5 class="modal-title" id="venueEditModalLabel{{i}}">Edit venue of {{dates[i]}} survey</h5>
+                    </div>
+                    <div class="modal-body">
+                    <form method="POST">
+                        <div class="form-group">
+                            <label for="current_venue{{i}}">Indicate the survey venue (Building Address, Floor, Unit No., etc):</label>
+                            <input type="text" class="form-control" id="current_venue{{i}}" placeholder="Add a venue" value='{{venues[i]}}' name="new_venue" required>
+                            <input type="hidden" name="index" value="{{ i }}">
+                        </div>
+                        <br>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </form>
+                    </div>
+                    <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+            <!-- notes edit popup -->
+            <div class="modal fade" id="notesEditModal{{i}}" tabindex="-1" role="dialog" aria-labelledby="notesEditModalLabel{{i}}" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="notesEditModalLabel{{i}}">Edit notes of {{dates[i]}} survey</h5>
+                    </div>
+                    <div class="modal-body">
+                        <form method="POST">
+                        <div class="form-group">
+                            <label for="current_notes{{i}}">Update notes:</label>
+                            <input type="text" class="form-control" id="current_notes{{i}}" name="new_notes" placeholder="Add a note" value='{{notes[i]}}' required>
+                            <input type="hidden" name="index" value="{{ i }}">
+                        </div>
+                        <br>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            <!-- upload new session card -->
+            <div class="col-md-4 mb-4">
+                <div class="card session-card">
+                    <h5 class="card-title">Upload New Session</h5>
+                    <form enctype="multipart/form-data" method="post" action="/upload_session">
+                        <div class="mb-3">
+                            <label for="zipfile">ZIP containing images</label>
+                            <input type="file" class="form-control" id="zipfile" name="zipfile" multiple required>
+                            <label for="csvfile">CSV of location data</label>
+                            <input type="file" class="form-control" id="csvfile" name="csvfile" multiple required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    
+    </div>
+
+{% endblock %}

@@ -18,8 +18,6 @@ def start_tkinter_gui():
 sessioncsv = ''
 sessionmap = ''
 sessionid = ''
-sessionvenue = ''
-sessiondate = ''
 show_negative = 1
 
 UPLOAD_FOLDER = 'uploads'
@@ -47,17 +45,12 @@ def home():
         new_venue = request.form.get('new_venue', '')
         new_notes = request.form.get('new_notes', '')
         new_csvpt = request.form.get('sessioncsvpath', '')
-        sel_venue = request.form.get('sessionvenue', '')
-        sel_date = request.form.get('sessiondate', '')
         uploaded_files = request.form.get('sessionFiles', '')
         if new_csvpt:
-            global sessioncsv, sessionid, sessionmap, sessionvenue, sessiondate
             sessioncsv = new_csvpt
-            sessionvenue = sel_venue
-            sessiondate = sel_date
             sessionid = ids[surveycsvpaths.index(sessioncsv)]
             sessionmap = mappaths[surveycsvpaths.index(sessioncsv)].replace('\\', '\\\\')
-            return redirect(url_for('session', sessionid=sessionid, sessioncsvpath=sessioncsv, sessionmap=sessionmap, sessionvenue=sessionvenue, sessiondate=sessiondate, show_negative=show_negative))
+            return redirect(url_for('session',  sessionid=sessionid, sessioncsvpath=sessioncsv, sessionmap=sessionmap, show_negative=show_negative))
         if new_venue:
             update_venues(new_venue, index)
         elif new_notes:
@@ -105,14 +98,11 @@ def session():
     sessioncsvpath = request.args.get('sessioncsvpath')
     sessionmap = request.args.get('sessionmap')
     sessionid = request.args.get('sessionid')
-    sessionvenue = request.args.get('sessionvenue')
-    sessiondate = request.args.get('sessiondate')
     show_negative = request.args.get('show_negative')
     classifications = get_classifications(sessioncsvpath)
     imagepaths = get_imagepaths(sessioncsvpath)
     gridlabels = get_gridlabels(sessioncsvpath)
     positions = get_positions(sessioncsvpath)
-    flagcolors = get_flagcolors(sessioncsvpath)
     shows = get_shows(sessioncsvpath)
     notes = get_engineernotes(sessioncsvpath)
     numrows, numcols, area = get_griddinfo(sessionid)
@@ -131,14 +121,11 @@ def session():
                            sessioncsvpath = sessioncsvpath,
                            sessionmap = sessionmap,
                            sessionid = sessionid,
-                           sessionvenue = sessionvenue,
-                           sessiondate = sessiondate,
                            show_negative=show_negative,
                            classifications = classifications,
                            imagepaths = imagepaths,
                            gridlabels = gridlabels,
                            positions = positions,
-                           flagcolors = flagcolors,
                            shows = shows,
                            notes = notes, 
                            numrows = numrows,

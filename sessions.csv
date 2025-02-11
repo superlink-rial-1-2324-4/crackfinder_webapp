@@ -1,1 +1,4 @@
 ID|DateYMD|Venue|CrackCount|Notes|CsvFilename|MapFilename|Rows|Cols
+2025_01_23_0|2025-01-23|24 Hillside - Blue Ridge A Subdivision - Katipunan Ave, QC.|5|This is the first survey. Initial inspection.|static\survey_2025_01_23_0.csv|static\map_2025_01_23_0.png|100|120
+2025_01_23_1|2025-01-23|24 Hillside - Blue Ridge A Subdivision - Katipunan Ave, QC.|36|Fourth survey done. 2nd and 3rd were cut short.|static\survey_2025_01_23_1.csv|static\map_2025_01_23_1.png|100|160
+2025_01_23_2|2025-01-23|24 Hillside - Blue Ridge A Subdivision - Katipunan Ave, QC.|44|Fifth and final survey done.|static\survey_2025_01_23_2.csv|static\map_2025_01_23_2.png|100|160

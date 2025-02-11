@@ -1,7 +1,7 @@
 import cv2
-import itertools
 import math
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import os
 import pandas as pd
@@ -13,7 +13,6 @@ from datetime import datetime
 from scipy.signal import savgol_filter
 from simplification.cutil import simplify_coords
 from sklearn.cluster import DBSCAN
-
 from ultralytics import YOLO
 
 # preferences
@@ -468,8 +467,8 @@ def MapGenerate(id):
 
         plt.plot(x_room_origin, y_room_origin)
         plt.plot(x_simple, y_simple, '--', color='Blue')
-        plt.axis('off')
-        #plt.grid('on')
+        plt.axis('on')
+        plt.grid('on')
         plt.fill(x_room_origin, y_room_origin, color='skyblue', edgecolor='black')
         plt.scatter(x_flight_path_origin - x_shift, y_flight_path_origin - y_shift, color="Blue", label="Origin")
         plt.text(x_flight_path_origin - x_shift, y_flight_path_origin - 0.3 - y_shift, "Flight Origin", ha='center', fontsize=8)
@@ -480,15 +479,39 @@ def MapGenerate(id):
         import matplotlib
         matplotlib.use('Agg')
 
-        # create map file
+        # Create map file
         mapfilename = os.path.join('static', f'map_{id}.png')
+
         plt.plot(x_room_origin, y_room_origin)
         plt.plot(x_simple, y_simple, '--', color='Blue')
-        plt.axis('off')
-        #plt.grid('on')
+
+        plt.axis('on')
+        plt.grid('on')
+
+        # Fill room shape
         plt.fill(x_room_origin, y_room_origin, color='skyblue', edgecolor='black')
+
+        # Scatter flight origin
         plt.scatter(x_flight_path_origin - x_shift, y_flight_path_origin - y_shift, color="Blue", label="Origin")
-        plt.text(x_flight_path_origin - x_shift, y_flight_path_origin - 0.3 - y_shift, "Flight Origin", ha='center', fontsize=8)
+        plt.text(x_flight_path_origin - x_shift, y_flight_path_origin - 0.3 - y_shift, "Flight Origin",
+                ha='center', fontsize=8)
+
+        # Get current axis
+        ax = plt.gca()
+
+        # Move tick labels inside
+        ax.tick_params(axis='x', direction='in', pad=-15)
+        ax.tick_params(axis='y', direction='in', pad=-25)
+
+        # Ensure only whole number ticks
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+
+        # Remove tick labels for (0,0) while keeping other ticks
+        ax.set_xticklabels(['' if tick == 0 else str(int(tick)) for tick in ax.get_xticks()])
+        ax.set_yticklabels(['' if tick == 0 else str(int(tick)) for tick in ax.get_yticks()])
+
+        # Save figure
         plt.savefig(mapfilename, dpi=300, bbox_inches='tight', transparent=True, pad_inches=0)
         plt.close()
 
@@ -626,17 +649,6 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
     x_crack = df_surveydata['X'].tolist()
     y_crack = df_surveydata['Y'].tolist()
 
-    df_yawtrans = pd.read_csv(os.path.join('static', f"yawtrans_{id}.csv"))
-
-    plt.plot(x_crack, y_crack, 'x', label='Crack')
-    plt.plot(x_corners, y_corners, '-', label='Flight')
-    plt.plot(df_yawtrans['X'].tolist(), df_yawtrans['Y'].tolist(), '-', label='YawTrans')
-    plt.plot(x_room, y_room, '-', label='Room')
-    plt.plot(x_flight_path_origin, y_flight_path_origin, 'o', label='Origin')
-    plt.axis('square')
-    plt.grid('on')
-    plt.show()
-
     shorter = 100
 
     factor = 0
@@ -757,7 +769,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
     query_points = np.vstack([x_query, y_query]).T
 
     # Use DBSCAN to cluster points with epsilon=0.2
-    dbscan = DBSCAN(eps=0.2, min_samples=1)  # min_samples=1 means even single points are considered a cluster
+    dbscan = DBSCAN(eps=0.5, min_samples=1)  # min_samples=1 means even single points are considered a cluster
     labels = dbscan.fit_predict(query_points)
 
     # Assign grid labels to the query points based on cluster centers
@@ -809,7 +821,7 @@ def CrackClassifier(id):
     # classify the images
 
     # load the model
-    model = YOLO(r"assets\best.pt")
+    model = YOLO("assets/best.pt")
 
     # declare blank arrays
     image_paths = []
@@ -918,6 +930,24 @@ def DataConsolidation(id, rows, cols):
 
     # update the csv file
     new_df_sessions.to_csv('sessions.csv', sep='|', index=False)
+
+    # assign flag colors
+    df = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
+
+    # Priority order mapping
+    priority = {'horizontal': 1, 'diagonal': 2, 'vertical': 3, 'negative': 4}
+    color_mapping = {1: '#D32F2F', 2: '#F57C00', 3: '#F57C00', 4: '#388E3C'}
+
+    # Function to get the flag color for each unique position
+    def assign_flag_color(classifications):
+        min_priority = min(priority.get(c, 4) for c in classifications)  # Default to lowest priority
+        return color_mapping[min_priority]
+
+    # Group by Position and assign flag color based on highest priority classification
+    df['FlagColor'] = df.groupby('Position')['Classification'].transform(assign_flag_color)
+
+    # Update the csv
+    df.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
 
     return
 

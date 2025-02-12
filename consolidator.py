@@ -120,6 +120,11 @@ def get_positions(csv_path):
     positions = surveydata['Position'].tolist()
     return positions
 
+def get_flagcolors(csv_path):
+    surveydata = access_surveydata(csv_path)
+    flagcolors = surveydata['FlagColor'].tolist()
+    return flagcolors
+
 def get_shows(csv_path):
     surveydata = access_surveydata(csv_path)
     shows = surveydata['BooleanShow'].tolist()
@@ -137,7 +142,7 @@ def get_griddinfo(id):
     area = numrows * numcols
     return numrows, numcols, area
 
-# functions update data related to specific survey session
+# functions to update data related to specific survey session
 
 def update_surveydata(csv_path, surveydata):
     surveydata = surveydata.sort_values(by='GridLabel', ascending=True)

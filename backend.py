@@ -1,27 +1,30 @@
-import re
+import cv2
+import math
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import os
 import pandas as pd
+import re
 import time
 import zipfile
 
 from datetime import datetime
 from scipy.signal import savgol_filter
-from shapely.geometry import Polygon
-from shapely.geometry.polygon import orient
-from shapely import buffer
 from simplification.cutil import simplify_coords
 from sklearn.cluster import DBSCAN
-
-import cv2
 from ultralytics import YOLO
 
 # preferences
 SHOW_VISUALIZATION = False
 SCALE_YAW = 1
-THRESHOLD_YAW = 0.25
+THRESHOLD_YAW = 0.5
+DISTANCE_TO_WALL = 0.5
 
+# global variables
+x_flight_path_origin = 0
+y_flight_path_origin = 0
+    
 def measure_time(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()  # Start the timer
@@ -259,213 +262,119 @@ def MapGenerate(id):
         y_smooth = savgol_filter(y, window_length=window_size, polyorder=poly_order)
         
         return x_smooth, y_smooth
-
-    def calculate_centroid(x_coords, y_coords):
-
-        if len(x_coords) != len(y_coords):
-            raise ValueError("The number of x-coordinates and y-coordinates must be the same.")
-        
-        # Calculate the averages
-        x_centroid = sum(x_coords) / len(x_coords)
-        y_centroid = sum(y_coords) / len(y_coords)
-
-        return x_centroid, y_centroid
-
-    def translate_coordinates(x_coords, y_coords, x_centroid, y_centroid):
-        xc, yc = calculate_centroid(x_coords, y_coords)
-        x_shift = x_centroid - xc
-        y_shift = y_centroid - yc
-        return [x + x_shift for x in x_coords], [y + y_shift for y in y_coords]
-
+    
     def simplify_path(x, y, tolerance=1.0):
         coords = np.column_stack((x, y))
         simplified = simplify_coords(coords, tolerance)
         return simplified[:, 0], simplified[:, 1]
+    
+    def find_largest_quadrilateral(x_coords, y_coords):
+        max_area = 0
+        best_quad = None
+        n = len(x_coords)
 
-    def detect_corners_angle(x, y, min_angle_threshold=45, max_angle_threshold=120, min_distance=1.0):
-        """
-        Detect corners based on angle between consecutive segments and omit corners
-        that are too close to the last detected corner.
+        # Generate all possible combinations of 4 points
+        for i in range(n):
+            for j in range(i + 1, n):
+                for k in range(j + 1, n):
+                    for l in range(k + 1, n):
+                        indices = [i, j, k, l]
+                        x = [x_coords[idx] for idx in indices]
+                        y = [y_coords[idx] for idx in indices]
 
-        Parameters:
-        x (list or np.array): Smoothed x coordinates.
-        y (list or np.array): Smoothed y coordinates.
-        angle_threshold (float): Angle change threshold in degrees to detect corners.
-        min_distance (float): Minimum distance between consecutive detected corners.
+                        # Compute area using Shoelace formula
+                        area = 0.5 * abs(
+                            x[0] * y[1] + x[1] * y[2] + x[2] * y[3] + x[3] * y[0]
+                            - (y[0] * x[1] + y[1] * x[2] + y[2] * x[3] + y[3] * x[0])
+                        )
 
-        Returns:
-        x_corners, y_corners (list of floats): Detected corners' x and y coordinates.
-        """
-        x_corners, y_corners = [], []
+                        # Update max area and best set of points
+                        if area > max_area:
+                            max_area = area
+                            best_quad = [(x[m], y[m]) for m in range(4)]
 
-        for i in range(1, len(x) - 1):
-            # Vectors between three consecutive points
-            v1 = np.array([x[i] - x[i-1], y[i] - y[i-1]])
-            v2 = np.array([x[i+1] - x[i], y[i+1] - y[i]])
-            
-            # Normalize the vectors
-            v1_norm = v1 / np.linalg.norm(v1)
-            v2_norm = v2 / np.linalg.norm(v2)
-            
-            # Compute the angle between vectors using dot product
-            angle = np.degrees(np.arccos(np.dot(v1_norm, v2_norm)))
-            
-            # Detect if angle exceeds threshold
-            if max_angle_threshold > angle > min_angle_threshold:
-                
-                # If no corners have been detected yet, add the first one
-                if len(x_corners) == 0:
-                    x_corners.append(x[i])
-                    y_corners.append(y[i])
-                else:
-                    # Calculate the distance from the last detected corner
-                    dist = np.sqrt((x[i] - x_corners[-1])**2 + (y[i] - y_corners[-1])**2)
-                    
-                    # Only add corner if it's farther than the min_distance
-                    if dist > min_distance:
-                        x_corners.append(x[i])
-                        y_corners.append(y[i])
+        return best_quad
+    
+    def calculate_inclination_angle(x_coords, y_coords):
+        if len(x_coords) != 2 or len(y_coords) != 2:
+            raise ValueError("Input lists must each contain exactly two elements.")
         
-        return x_corners, y_corners
-
-    def rotate_points(points, angle, center):
-        """Rotate points by a given angle around a center point."""
-        rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+        x1, x2 = x_coords
+        y1, y2 = y_coords
+        
+        delta_x = x2 - x1
+        delta_y = y2 - y1
+        
+        angle = math.atan2(delta_y, delta_x)
+        return angle
+    
+    def shift_to_origin(x_coords, y_coords):
+        # Convert the x and y coordinates to numpy arrays for easier manipulation
+        points = np.array([x_coords, y_coords]).T
+        
+        # Calculate the centroid (mean of x and y coordinates)
+        centroid = np.mean(points, axis=0)
+        
+        # Shift the points by subtracting the centroid
+        shifted_points = points - centroid
+        
+        # Extract the shifted x and y coordinates
+        shifted_x = shifted_points[:, 0].tolist()
+        shifted_y = shifted_points[:, 1].tolist()
+        
+        # Calculate the shift amounts
+        x_shift = centroid[0]
+        y_shift = centroid[1]
+        
+        return shifted_x, shifted_y, x_shift, y_shift
+    
+    # Function to shift another shape by the same amount
+    def shift_shape_by_amount(x_coords, y_coords, x_shift, y_shift):
+        shifted_x = [x - x_shift for x in x_coords]
+        shifted_y = [y - y_shift for y in y_coords]
+        return shifted_x, shifted_y
+    
+    # Function to rotate a shape by an angle in radians
+    def rotate_shape(x_coords, y_coords, angle):
+        # Convert the x and y coordinates to numpy arrays for easier manipulation
+        points = np.array([x_coords, y_coords]).T
+        
+        # Create the rotation matrix
+        rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], 
                                     [np.sin(angle), np.cos(angle)]])
-        centered_points = points - center
-        rotated_points = np.dot(centered_points, rotation_matrix.T)
-        return rotated_points + center
-
-    def find_bottom_base(points):
-        """Find the two points that form the bottom base of a rectangle."""
-        # Sort points by their y-coordinate (smallest y-values should form the bottom base)
-        sorted_points = sorted(points, key=lambda point: point[1])
-        return sorted_points[0], sorted_points[1]
-
-    def align_rectangle_to_unit_square(x_coords, y_coords):
-        """Align a slanted rectangle's bottom base to match the unit square's bottom base."""
-        # Combine the x and y coordinates into a set of points
-        rectangle_points = np.array(list(zip(x_coords, y_coords)))
-
-        # Find the bottom base of the slanted rectangle
-        bottom_left, bottom_right = find_bottom_base(rectangle_points)
-
-        # Calculate the angle between the bottom base and the x-axis
-        dx = bottom_right[0] - bottom_left[0]
-        dy = bottom_right[1] - bottom_left[1]
-        angle = np.arctan2(dy, dx)  # Angle between the bottom base and the x-axis
-
-        # Calculate the center of the rectangle for rotation purposes
-        center = np.mean(rectangle_points, axis=0)
-
-        # Rotate the rectangle points by -angle to align the bottom base with the x-axis
-        aligned_points = rotate_points(rectangle_points, angle, center)
-
-        # Output separate lists of x and y coordinates of the aligned rectangle
-        aligned_x = aligned_points[:, 0].tolist()
-        aligned_y = aligned_points[:, 1].tolist()
-
-        aligned_x.append(aligned_x[0])
-        aligned_y.append(aligned_y[0])
         
-        return aligned_x, aligned_y, angle
+        # Rotate the points by multiplying with the rotation matrix
+        rotated_points = np.dot(points, rotation_matrix.T)
+        
+        # Extract the rotated x and y coordinates
+        rotated_x = rotated_points[:, 0].tolist()
+        rotated_y = rotated_points[:, 1].tolist()
+        
+        return rotated_x, rotated_y
     
-    def get_extreme_corners(x_coords, y_coords):
-        """Get the upper-rightmost, upper-leftmost, lower-rightmost, and lower-leftmost points.
-        Return separate lists of x and y coordinates in proper order for plotting a rectangle."""
-        
-        # Combine x and y coordinates into an array of points
-        points = np.array(list(zip(x_coords, y_coords)))
-        
-        # Sort the points based on their y-coordinates
-        sorted_points = sorted(points, key=lambda p: p[1])
-        
-        # Split into two halves: top half and bottom half
-        bottom_half = sorted_points[:2]  # Points with smaller y-values
-        top_half = sorted_points[2:]     # Points with larger y-values
-        
-        # Among the top half, find the leftmost and rightmost points
-        upper_leftmost = min(top_half, key=lambda p: p[0])
-        upper_rightmost = max(top_half, key=lambda p: p[0])
-        
-        # Among the bottom half, find the leftmost and rightmost points
-        lower_leftmost = min(bottom_half, key=lambda p: p[0])
-        lower_rightmost = max(bottom_half, key=lambda p: p[0])
-        
-        # Properly ordered coordinates for plotting a rectangle
-        # Start with lower-left -> lower-right -> upper-right -> upper-left
-        ordered_x = [lower_leftmost[0], lower_rightmost[0], upper_rightmost[0], upper_leftmost[0], lower_leftmost[0]]
-        ordered_y = [lower_leftmost[1], lower_rightmost[1], upper_rightmost[1], upper_leftmost[1], lower_leftmost[1]]
-        
-        return ordered_x, ordered_y
+    def get_room_estimate(x_coords, y_coords):
+        L = min(x_coords)
+        R = max(x_coords)
+        T = max(y_coords)
+        B = min(y_coords)
+        x_estimate = [L, L, R, R]
+        y_estimate = [B, T, T, B]
+        return x_estimate, y_estimate
     
-    def perfect_shape(x, y):
-        # determine the lower leftmost point
-        bottom_left_x = min(x)
-        bottom_left_y = min(y)
+    def shift_room_to_origin(x_coords, y_coords):
+        # Convert to numpy arrays
+        x = np.array(x_coords)
+        y = np.array(y_coords)
 
-        # determine the longest width and length
-        x_length = abs(max(x)-min(x))
-        y_length = abs(max(y)-min(y))
+        # Find the lower-leftmost point
+        x_shift = min(x)
+        y_shift = min(y)
 
-        # form a perfect square
-        x_perfect = [0, 0, 1, 1, 0]
-        y_perfect = [0, 1, 1, 0, 0]
+        # Shift all points
+        x_new = x - x_shift
+        y_new = y - y_shift
 
-        # apply the lengths
-        x_perfect = [x_length*x for x in x_perfect]
-        y_perfect = [y_length*y for y in y_perfect]
-
-        # shift the shape to the lower left most point
-        x_perfect = [x+bottom_left_x for x in x_perfect]
-        y_perfect = [y+bottom_left_y for y in y_perfect]
-
-        return x_perfect, y_perfect
-        
-    def thicken_shape(x, y, thickness=1.0, join_style=2):
-        """
-        Thicken a shape defined by x and y coordinates by a specified thickness.
-
-        Parameters:
-        x (list): List of x coordinates.
-        y (list): List of y coordinates.
-        thickness (float): Thickness to expand the shape outward.
-        join_style (int): Join style for corners (1 for bevel, 2 for mitre, 3 for round).
-
-        Returns:
-        tuple: New x and y coordinates of the thickened shape.
-        """
-        # Create a polygon from the coordinates
-        original_shape = Polygon(zip(x, y))
-
-        # Ensure the polygon is oriented counter-clockwise
-        original_shape = orient(original_shape, sign=1.0)
-
-        # Make the shape thicker by the specified amount with the given join style
-        thicker_shape = buffer(original_shape, thickness, join_style=join_style)
-
-        # Extract the new coordinates
-        thicker_x, thicker_y = thicker_shape.exterior.xy
-
-        return thicker_x, thicker_y
-
-    def insert_points(x_coords, y_coords):
-
-        # Insert more points between each corner of the expanded
-        super_x_coords, super_y_coords = [], []
-        for i in range(len(list(x_coords))-1):
-            xpoints = round(abs(x_coords[i] - x_coords[i+1])/0.05)
-            ypoints = round(abs(y_coords[i] - y_coords[i+1])/0.05)
-            if xpoints>0:
-                x_inserts = np.linspace(x_coords[i], x_coords[i+1], num=xpoints)
-                y_inserts = np.linspace(y_coords[i], y_coords[i+1], num=xpoints)
-            elif ypoints>0:
-                x_inserts = np.linspace(x_coords[i], x_coords[i+1], num=ypoints)
-                y_inserts = np.linspace(y_coords[i], y_coords[i+1], num=ypoints)
-            for x, y in zip(x_inserts, y_inserts):
-                super_x_coords.append(x)
-                super_y_coords.append(y)
-        return super_x_coords, super_y_coords
+        return x_new.tolist(), y_new.tolist(), x_shift, y_shift
 
     # load yawtrans data
     df_flowdeckdata = pd.read_csv(os.path.join('static', f'yawtrans_{id}.csv'))
@@ -474,82 +383,139 @@ def MapGenerate(id):
 
     # smoothen data
     x_smooth, y_smooth = smooth_coordinates(x_coords, y_coords, window_size=5, poly_order=2)
-    df_flowdeckdata['X'] = x_smooth
-    df_flowdeckdata['Y'] = y_smooth
-    df_flowdeckdata.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
 
     # simplify flight path
     x_simple, y_simple = simplify_path(x_smooth, y_smooth)
 
-    # determine centroid of simplified flight path
-    x_centroid, y_centroid = calculate_centroid(x_simple, y_simple)
-
-    # detect corners
-    x_corners, y_corners = detect_corners_angle(x_simple, y_simple)
-    x_corners, y_corners = translate_coordinates(x_corners, y_corners, x_centroid, y_centroid)
-
-    # align the shape
-    x_align, y_align, angle = align_rectangle_to_unit_square(x_corners, y_corners)
+    # further simplify flight path
+    best_points = find_largest_quadrilateral(x_simple, y_simple)
+    best_points = find_largest_quadrilateral(x_simple, y_simple)
+    x_flight = [p[0] for p in best_points]
+    y_flight = [p[1] for p in best_points]
     
-    # get extreme corners
-    x_extreme, y_extreme = get_extreme_corners(x_align, y_align)
+    # shift coordinates
+    x_flight, y_flight, x_shift, y_shift = shift_to_origin(x_flight, y_flight)
+    x_coords, y_coords  = shift_shape_by_amount(x_coords, y_coords, x_shift, y_shift)
+    x_smooth, y_smooth  = shift_shape_by_amount(x_smooth, y_smooth, x_shift, y_shift)
+    x_simple, y_simple  = shift_shape_by_amount(x_simple, y_simple, x_shift, y_shift)
 
-    # perfect the rectangle
-    x_perfect, y_perfect = perfect_shape(x_extreme, y_extreme)
+    # rotate coordinates
+    angle = calculate_inclination_angle(x_flight[:2], y_flight[:2])
+    x_flight, y_flight = rotate_shape(x_flight, y_flight, -angle)
+    x_coords, y_coords = rotate_shape(x_coords, y_coords, -angle)
+    x_smooth, y_smooth = rotate_shape(x_smooth, y_smooth, -angle)
+    x_simple, y_simple = rotate_shape(x_simple, y_simple, -angle)
 
-    # thicken the shape
-    x_thick, y_thick = thicken_shape(x_perfect, y_perfect)
+    # form the room trace
+    expansion_factor = DISTANCE_TO_WALL * np.sqrt(2)
+    x_room = [x / expansion_factor for x in x_flight]
+    y_room = [y / expansion_factor for y in y_flight]
 
-    # insert more points between each corner
-    x_room, y_room = insert_points(x_thick, y_thick)
+    # form a perfected room estimate for web app presentation purposes
+    x_estimate, y_estimate = get_room_estimate(x_room, y_room)
+
+    # ensure room is of horizontal orientation for
+    # web app viewing
+    xlen = max(x_estimate) - min(x_estimate)
+    ylen = max(y_estimate) - min(y_estimate)
+    if ylen > xlen:
+        x_flight, y_flight = rotate_shape(x_flight, y_flight, np.radians(90))
+        x_coords, y_coords = rotate_shape(x_coords, y_coords, np.radians(90))
+        x_smooth, y_smooth = rotate_shape(x_smooth, y_smooth, np.radians(90))
+        x_simple, y_simple = rotate_shape(x_simple, y_simple, np.radians(90))
+        x_room, y_room = rotate_shape(x_room, y_room, np.radians(90))
+        x_estimate, y_estimate = rotate_shape(x_estimate, y_estimate, np.radians(90))
+
+    # update global variable for flight path origin coordinates
+    global x_flight_path_origin, y_flight_path_origin
+    x_flight_path_origin = x_coords[0]
+    y_flight_path_origin = y_coords[0]
+
+    # update yawtrans data
+    df_flowdeckdata['X'] = x_coords
+    df_flowdeckdata['Y'] = y_coords
+
+    # close the shapes for presentation purposes
+    x_flight.append(x_flight[0])
+    y_flight.append(y_flight[0])
+    x_room.append(x_room[0])
+    y_room.append(y_room[0])
+    x_estimate.append(x_estimate[0])
+    y_estimate.append(y_estimate[0])
+
+    # shift lowerleftmost coordinate of room to origin
+    # for neat web app presentation
+    x_room_origin, y_room_origin, x_shift, y_shift = shift_room_to_origin(x_estimate, y_estimate)
+    x_simple, y_simple  = shift_shape_by_amount(x_simple, y_simple, x_shift, y_shift)
+
+    # update survey data csv
+    df_flowdeckdata.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
 
     # visualization
     if SHOW_VISUALIZATION:
-        
-        plt.plot(x_coords, y_coords, '', label='YawTrans')
-        plt.plot(x_smooth, y_smooth, '-', label='Smooth')
-        plt.legend()
+        plt.plot(x_coords, y_coords, '-', label="Raw")
+        #plt.plot(x_smooth, y_smooth, '-', label="Smooth")
+        #plt.plot(x_simple, y_simple, '-', label="Simple")
+        plt.plot(x_flight, y_flight, '-', label="Flight Path, simplified")
+        #plt.plot(x_room, y_room, '-', label="Room")
+        plt.plot(x_estimate, y_estimate, '-', label="Room")
         plt.grid('on')
+        plt.axis('square')
+        plt.legend()
+        plt.title('Map Generation')
         plt.show()
 
-        plt.plot(x_coords, y_coords, '', label='YawTrans')
-        plt.plot(x_smooth, y_smooth, '-', label='Smooth')
-        plt.plot(x_simple, y_simple, '-', label='Simple')
-        plt.plot(x_corners, y_corners, 'o-', label='Estimated Flight Path')
-        plt.legend()
+        plt.plot(x_room_origin, y_room_origin)
+        plt.plot(x_simple, y_simple, '--', color='Blue')
+        plt.axis('on')
         plt.grid('on')
+        plt.fill(x_room_origin, y_room_origin, color='skyblue', edgecolor='black')
+        plt.scatter(x_flight_path_origin - x_shift, y_flight_path_origin - y_shift, color="Blue", label="Origin")
+        plt.text(x_flight_path_origin - x_shift, y_flight_path_origin - 0.3 - y_shift, "Flight Origin", ha='center', fontsize=8)
         plt.show()
 
-        plt.plot(x_simple, y_simple, '-', label='Simple')
-        plt.plot(x_smooth, y_smooth, '-', label='Smooth')
-        plt.plot(x_perfect, y_perfect, 'x-', label='Aligned Flight Path')
-        plt.plot(x_room, y_room, '-', label='Room Trace')
-        plt.legend()
-        plt.grid('on')
-        plt.show()
-        
-        plt.plot(x_corners, y_corners, 'o-', label='Estimated Flight Path')
-        plt.plot(x_align, y_align, 'o-', label='Aligned')
-        plt.legend()
-        plt.grid('on')
-        plt.show()
-        
-    # generation of map
     else:
         # Use the 'Agg' backend for rendering
         import matplotlib
-        matplotlib.use('Agg')  
+        matplotlib.use('Agg')
 
-        # output image file of room tracing
+        # Create map file
         mapfilename = os.path.join('static', f'map_{id}.png')
-        plt.plot(x_room, y_room)
-        plt.axis('off')
-        plt.fill(x_room, y_room, color='skyblue', edgecolor='black')
+
+        plt.plot(x_room_origin, y_room_origin)
+        plt.plot(x_simple, y_simple, '--', color='Blue')
+
+        plt.axis('on')
+        plt.grid('on')
+
+        # Fill room shape
+        plt.fill(x_room_origin, y_room_origin, color='skyblue', edgecolor='black')
+
+        # Scatter flight origin
+        plt.scatter(x_flight_path_origin - x_shift, y_flight_path_origin - y_shift, color="Blue", label="Origin")
+        plt.text(x_flight_path_origin - x_shift, y_flight_path_origin - 0.3 - y_shift, "Flight Origin",
+                ha='center', fontsize=8)
+
+        # Get current axis
+        ax = plt.gca()
+
+        # Move tick labels inside
+        ax.tick_params(axis='x', direction='in', pad=-15)
+        ax.tick_params(axis='y', direction='in', pad=-25)
+
+        # Ensure only whole number ticks
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+
+        # Remove tick labels for (0,0) while keeping other ticks
+        ax.set_xticklabels(['' if tick == 0 else str(int(tick)) for tick in ax.get_xticks()])
+        ax.set_yticklabels(['' if tick == 0 else str(int(tick)) for tick in ax.get_yticks()])
+
+        # Save figure
         plt.savefig(mapfilename, dpi=300, bbox_inches='tight', transparent=True, pad_inches=0)
         plt.close()
 
-    # output corner coordinates for the next subsystem
-    return x_perfect, y_perfect, x_room, y_room, angle
+    return x_flight, y_flight, x_estimate, y_estimate
 
 @measure_time
 def TimeMatch(id):
@@ -588,27 +554,13 @@ def TimeMatch(id):
     df_surveydata['Classification'] = 'unclassified'
     df_surveydata['GridLabel'] = 0
     df_surveydata['BooleanShow'] = 1
-    df_surveydata['Notes'] = '-'
+    df_surveydata['Notes'] = 'This is a note.'
 
     # update the image file paths
     imagepaths = df_surveydata['ImagePath'].tolist()
     for i, imagepath in enumerate(imagepaths):
         imagepaths[i] = os.path.join(f"images_{id}", imagepath).replace('\\', '/')
     df_surveydata['ImagePath'] = imagepaths
-
-    # add row to indicate origin of flight path
-    new_row = pd.DataFrame({
-        "X": [0.0],
-        "Y": [0.0],
-        "Z": [0.0],
-        "Yaw": [0.0],
-        "ImagePath": ["origin"],
-        "Classification": ["origin"],
-        "GridLabel": [0],
-        "BooleanShow": [1],
-        "Notes": ["Point of flight origin."]
-    })
-    df_surveydata = pd.concat([df_surveydata, new_row], ignore_index=True)
 
     # save the time matched dataframe to csv with proper filename
     df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
@@ -626,7 +578,7 @@ def TimeMatch(id):
     return
 
 @measure_time
-def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
+def GridAssign(id, x_corners, y_corners, x_room, y_room):
     
     def calculate_distance(x1, y1, x2, y2):
         return np.sqrt((x1-x2)**2 + (y1-y2)**2)
@@ -699,7 +651,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
 
     shorter = 100
 
-    factor = 0.5
+    factor = 0
     xmax = max(x_corners) + factor
     xmin = min(x_corners) - factor
     ymax = max(y_corners) + factor*2
@@ -717,14 +669,6 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
         cols = shorter
     else:
         rows, cols = shorter, shorter
-
-    xc, yc = translate_coordinates(x_corners, y_corners, -np.mean([xmin, xmax]), -np.mean([ymin, ymax]))
-    x_crack, y_crack = translate_coordinates(x_crack, y_crack, -np.mean([xmin, xmax]), -np.mean([ymin, ymax]))
-
-    xmax = max(xc)
-    xmin = min(xc)
-    ymax = max(yc)
-    ymin = min(yc)
 
     # generate cluster coordinates
     x_cluster_points = np.linspace(xmin, xmax, cols).tolist()
@@ -750,20 +694,26 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
         x_fit_flight.append(xpos)
         y_fit_flight.append(ypos)
     
-    x_crack_room = [x/0.70710678118 for x in x_fit_flight]
-    y_crack_room = [y/0.70710678118 for y in y_fit_flight]
+    expansion_factor = DISTANCE_TO_WALL * np.sqrt(2)
+    x_crack_room = [x / expansion_factor for x in x_fit_flight]
+    y_crack_room = [y / expansion_factor for y in y_fit_flight]
 
     xmax = max(x_room)
     xmin = min(x_room)
     ymax = max(y_room)
     ymin = min(y_room)
 
-    x_room_grid, y_room_grid = translate_coordinates(x_room, y_room, -np.mean([xmin, xmax]), -np.mean([ymin, ymax]))
-    x_crack, y_crack = translate_coordinates(x_crack, y_crack, -np.mean([xmin, xmax]), -np.mean([ymin, ymax]))
-
-    # rotate cracks according to angle produced in MapGenerate()
-
-    x_crack, y_crack = rotate_points(x_crack, y_crack, angle, np.array([0, 0]))
+    # generate cluster coordinates
+    x_room_grid, y_room_grid = [], []
+    x_cluster_points = np.linspace(xmin, xmax, cols).tolist()
+    y_cluster_points = np.linspace(ymin, ymax, rows).tolist()
+    y_cluster_points_rev = list(reversed(y_cluster_points))
+    x_flight_grid, y_flight_grid = [], []
+    for y in y_cluster_points_rev:
+        for x in x_cluster_points:
+            if y in [ymin, ymax] or x in [xmin, xmax]:
+                x_room_grid.append(x)
+                y_room_grid.append(y)
 
     # fit cracks to room grid
     x_fit_room, y_fit_room = [], []
@@ -819,7 +769,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
     query_points = np.vstack([x_query, y_query]).T
 
     # Use DBSCAN to cluster points with epsilon=0.2
-    dbscan = DBSCAN(eps=0.2, min_samples=1)  # min_samples=1 means even single points are considered a cluster
+    dbscan = DBSCAN(eps=0.5, min_samples=1)  # min_samples=1 means even single points are considered a cluster
     labels = dbscan.fit_predict(query_points)
 
     # Assign grid labels to the query points based on cluster centers
@@ -841,8 +791,6 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
 
     df = pd.DataFrame(clustered_points, columns=['Query Points', 'Position', 'GridLabel'])
 
-    df['Position'][-1] = 0 # origin of flight path is position 0
-
     df_surveydata['GridLabel'] = df['GridLabel']
     df_surveydata['Position'] = df['Position']
     df_surveydata['X'] = x_fit_room
@@ -853,10 +801,10 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room, angle):
 
     # visualization
     if SHOW_VISUALIZATION:
-        #plt.plot(x_flight_grid, y_flight_grid, '.', label='Flight Grid')
-        plt.plot(x_room_grid, y_room_grid, '-', label='Room')
-        #plt.plot(x_crack, y_crack, 'x', label='Cracks')
-        #plt.plot(x_fit_flight, y_fit_flight, 'x', label='Cracks, fit to Flight Grid')
+        plt.plot(x_flight_grid, y_flight_grid, '.', label='Flight Grid')
+        plt.plot(x_room_grid, y_room_grid, '.', label='Room')
+        plt.plot(x_crack, y_crack, 'x', label='Cracks')
+        plt.plot(x_fit_flight, y_fit_flight, 'x', label='Cracks, fit to Flight Grid')
         plt.plot(x_fit_room, y_fit_room, 'x', label='Cracks, fit to Room Trace')
         plt.grid('on')
         plt.legend()
@@ -881,10 +829,6 @@ def CrackClassifier(id):
 
     # iterate through images
     for file in df_surveydata['ImagePath'].tolist():
-
-        # no need to classify if the point is the flight origin
-        if file == 'origin':
-            continue
 
         img_path = os.path.join('static', file)
         
@@ -918,11 +862,6 @@ def CrackClassifier(id):
         """
         # record the predicted class name
         classes.append(predicted_class_name)
-    classes.append('origin')
-
-    for i, boolshow in enumerate(df_surveydata['BooleanShow'].tolist()):
-        if classes[i] == 'negative':
-            df_surveydata['BooleanShow'][i] = 0
 
     # add classifications columns to dataframe
     df_surveydata['Classification'] = classes
@@ -965,10 +904,9 @@ def DataConsolidation(id, rows, cols):
     filename = os.path.join('static', f'survey_{id}.csv')
     csvfilenames.append(filename)
 
-    # count of cracks
+    # count of cracks photo-taken
     df = pd.read_csv(filename, sep='|')
-    count = df[~df['Classification'].isin(['origin', 'negative'])].shape[0]
-    crackcounts.append(count)
+    crackcounts.append(df[df["Classification"] != "negative"].shape[0])
 
     # number of rows and columns
     rows_entries.append(rows)
@@ -993,15 +931,33 @@ def DataConsolidation(id, rows, cols):
     # update the csv file
     new_df_sessions.to_csv('sessions.csv', sep='|', index=False)
 
+    # assign flag colors
+    df = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
+
+    # Priority order mapping
+    priority = {'horizontal': 1, 'diagonal': 2, 'vertical': 3, 'negative': 4}
+    color_mapping = {1: '#D32F2F', 2: '#F57C00', 3: '#F57C00', 4: '#388E3C'}
+
+    # Function to get the flag color for each unique position
+    def assign_flag_color(classifications):
+        min_priority = min(priority.get(c, 4) for c in classifications)  # Default to lowest priority
+        return color_mapping[min_priority]
+
+    # Group by Position and assign flag color based on highest priority classification
+    df['FlagColor'] = df.groupby('Position')['Classification'].transform(assign_flag_color)
+
+    # Update the csv
+    df.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
+
     return
 
 @measure_time
 def CrackGPT():
     id = DataPreparation()
     YawTransform(id)
-    x_perfect, y_perfect, x_room, y_room, angle = MapGenerate(id)
+    x_flight, y_flight, x_estimate, y_estimate = MapGenerate(id)
     TimeMatch(id)
-    rows, cols = GridAssign(id, x_perfect, y_perfect, x_room, y_room, angle)
+    rows, cols = GridAssign(id, x_flight, y_flight, x_estimate, y_estimate)
     CrackClassifier(id)
     DataConsolidation(id, rows=rows, cols=cols)
     return

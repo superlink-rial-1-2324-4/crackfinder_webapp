@@ -1,19 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 
-import tkinter as tk
-import threading
-
 from backend import *
 from consolidator import *
 
 app = Flask(__name__)
-
-# Function to handle Tkinter operations
-def start_tkinter_gui():
-    root = tk.Tk()
-    label = tk.Label(root, text="Hello from Tkinter!")
-    label.pack()
-    root.mainloop()
 
 sessioncsv = ''
 sessionmap = ''
@@ -29,7 +19,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/home', methods=['GET', 'POST'])
 def home():
-    threading.Thread(target=start_tkinter_gui).start()
     clear_uploads()
     ids = get_ids()
     dates = get_dates()

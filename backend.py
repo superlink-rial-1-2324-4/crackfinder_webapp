@@ -829,19 +829,8 @@ def CrackClassifier(id):
     image_paths = []
     classes = []
 
-    # iterate through images
-    for file in df_surveydata['ImagePath'].tolist():
-
-        img_path = os.path.join(BASE_DIR,'static', file)
-        
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-        # store image name
-        image_paths.append(img_path)
-
     # prep the images
-    images = [cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) for img_path in image_paths]
+    images = [cv2.cvtColor(cv2.imread(os.path.join(BASE_DIR, 'static', img_path)), cv2.COLOR_BGR2RGB) for img_path in image_paths]
 
     # make predictions on the images
     results = model(images)

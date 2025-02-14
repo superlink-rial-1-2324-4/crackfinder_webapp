@@ -80,12 +80,12 @@ def upload_session():
     # Save zip files
     for zipfile in zipfiles:
         if zipfile:
-            zipfile.save(os.path.join(app.config['UPLOAD_FOLDER'], zipfile.filename))
+            zipfile.save(os.path.join(BASE_DIR,app.config['UPLOAD_FOLDER'], zipfile.filename))
 
     # Save csv files
     for csvfile in csvfiles:
         if csvfile:
-            csvfile.save(os.path.join(app.config['UPLOAD_FOLDER'], csvfile.filename))
+            csvfile.save(os.path.join(BASE_DIR,app.config['UPLOAD_FOLDER'], csvfile.filename))
     
     CrackGPT()
     

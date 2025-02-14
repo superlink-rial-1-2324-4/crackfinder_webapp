@@ -2,10 +2,11 @@ import os
 import pandas as pd
 
 # functions related to consolidation of data for the home page
+BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
 
 def clear_uploads():
     for file in os.listdir('uploads'):
-        os.remove(os.path.join('uploads', file))
+        os.remove(os.path.join(BASE_DIR,'uploads', file))
     return
 
 def access_masterlist():

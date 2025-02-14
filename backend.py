@@ -21,6 +21,8 @@ SCALE_YAW = 1
 THRESHOLD_YAW = 0.5
 DISTANCE_TO_WALL = 0.5
 
+BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
+
 # global variables
 x_flight_path_origin = 0
 y_flight_path_origin = 0
@@ -44,7 +46,7 @@ def DataPreparation():
     for filename in os.listdir('uploads'):
         if filename.lower().endswith('.csv'):
             mycsv = filename
-    mycsv = os.path.join('uploads', mycsv)
+    mycsv = os.path.join(BASE_DIR,'uploads', mycsv)
     df_flowdeckdata = pd.read_csv(mycsv)
     x_coords = df_flowdeckdata['Y'].tolist()
     y_coords = df_flowdeckdata['X'].tolist()
@@ -78,7 +80,7 @@ def DataPreparation():
     for filename in os.listdir('uploads'):
         if filename.lower().endswith('.zip'):
             myzip = filename
-    myzip = os.path.join('uploads', myzip)
+    myzip = os.path.join(BASE_DIR,'uploads', myzip)
 
     # preallocate for image data dataframe
     df_imagedata = pd.DataFrame()
@@ -121,15 +123,15 @@ def DataPreparation():
     id = f"{year}_{month}_{day}_{index}"
 
     # update location data csv
-    df_flowdeckdata_updated.to_csv(os.path.join('static', f'rawloc_{id}.csv'), index=False)
+    df_flowdeckdata_updated.to_csv(os.path.join(BASE_DIR,'static', f'rawloc_{id}.csv'), index=False)
     
     # create csv containing image metadata
-    df_imagedata.to_csv(os.path.join('static', f'imagedata_{id}.csv'), index=False)
+    df_imagedata.to_csv(os.path.join(BASE_DIR,'static', f'imagedata_{id}.csv'), index=False)
     
     # extract zip image contents
     with zipfile.ZipFile(myzip, 'r') as file:
-        os.mkdir(os.path.join('static', f"images_{id}"))
-        file.extractall(os.path.join('static', f"images_{id}"))
+        os.mkdir(os.path.join(BASE_DIR,'static', f"images_{id}"))
+        file.extractall(os.path.join(BASE_DIR,'static', f"images_{id}"))
     
     # clean uploads folder
     #os.remove(myzip)
@@ -141,7 +143,7 @@ def DataPreparation():
 def YawTransform(id):
     
     # load flowdeck data
-    df_flowdeckdata = pd.read_csv(os.path.join('static', f'rawloc_{id}.csv'))
+    df_flowdeckdata = pd.read_csv(os.path.join(BASE_DIR,'static', f'rawloc_{id}.csv'))
     x_coords = df_flowdeckdata['X']
     y_coords = df_flowdeckdata['Y']
     z_coords = df_flowdeckdata['Z']
@@ -163,7 +165,7 @@ def YawTransform(id):
             'Yaw': yaws,
             'Timestamp': timestamps
         })
-        df_yawtrans.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
+        df_yawtrans.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
         return
 
     # smoothen data
@@ -225,7 +227,7 @@ def YawTransform(id):
         'Yaw': yaw_retained,
         'Timestamp': timestamps
     })
-    df_yawtrans.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
+    df_yawtrans.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
     
     # visualization
     if SHOW_VISUALIZATION: 
@@ -377,7 +379,7 @@ def MapGenerate(id):
         return x_new.tolist(), y_new.tolist(), x_shift, y_shift
 
     # load yawtrans data
-    df_flowdeckdata = pd.read_csv(os.path.join('static', f'yawtrans_{id}.csv'))
+    df_flowdeckdata = pd.read_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'))
     x_coords = df_flowdeckdata['X']
     y_coords = df_flowdeckdata['Y']
 
@@ -449,7 +451,7 @@ def MapGenerate(id):
     x_simple, y_simple  = shift_shape_by_amount(x_simple, y_simple, x_shift, y_shift)
 
     # update survey data csv
-    df_flowdeckdata.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
+    df_flowdeckdata.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
 
     # visualization
     if SHOW_VISUALIZATION:
@@ -480,7 +482,7 @@ def MapGenerate(id):
         matplotlib.use('Agg')
 
         # Create map file
-        mapfilename = os.path.join('static', f'map_{id}.png')
+        mapfilename = os.path.join(BASE_DIR,'static', f'map_{id}.png')
 
         plt.plot(x_room_origin, y_room_origin)
         plt.plot(x_simple, y_simple, '--', color='Blue')
@@ -521,10 +523,10 @@ def MapGenerate(id):
 def TimeMatch(id):
 
     # load yawtrans location data
-    df_yawtransdata = pd.read_csv(os.path.join('static',  f'yawtrans_{id}.csv'))
+    df_yawtransdata = pd.read_csv(os.path.join(BASE_DIR,'static',  f'yawtrans_{id}.csv'))
 
     # load image metadata 
-    df_imagedata = pd.read_csv(os.path.join('static', f'imagedata_{id}.csv'))
+    df_imagedata = pd.read_csv(os.path.join(BASE_DIR,'static', f'imagedata_{id}.csv'))
 
     one_time = []
     unique_times = df_yawtransdata['Timestamp'].unique().tolist()
@@ -559,18 +561,18 @@ def TimeMatch(id):
     # update the image file paths
     imagepaths = df_surveydata['ImagePath'].tolist()
     for i, imagepath in enumerate(imagepaths):
-        imagepaths[i] = os.path.join(f"images_{id}", imagepath).replace('\\', '/')
+        imagepaths[i] = os.path.join(BASE_DIR,f"images_{id}", imagepath).replace('\\', '/')
     df_surveydata['ImagePath'] = imagepaths
 
     # save the time matched dataframe to csv with proper filename
-    df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
+    df_surveydata.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
 
     # remove unmatched images from the folder
-    folder_path = os.path.join('static', f"images_{id}")
+    folder_path = os.path.join(BASE_DIR,'static', f"images_{id}")
     folder_files = os.listdir(folder_path)
     for file_name in folder_files:
-        if os.path.join(f"images_{id}", file_name).replace('\\', '/') not in imagepaths:
-            file_path = os.path.join(folder_path, file_name)
+        if os.path.join(BASE_DIR,f"images_{id}", file_name).replace('\\', '/') not in imagepaths:
+            file_path = os.path.join(BASE_DIR,folder_path, file_name)
             # Ensure it's a file before deleting
             if os.path.isfile(file_path):
                 os.remove(file_path)
@@ -645,7 +647,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
         return rotated_x, rotated_y
 
     # load detected crack data
-    df_surveydata = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
+    df_surveydata = pd.read_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|')
     x_crack = df_surveydata['X'].tolist()
     y_crack = df_surveydata['Y'].tolist()
 
@@ -797,7 +799,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
     df_surveydata['Y'] = y_fit_room
 
     # update survey data csv
-    df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
+    df_surveydata.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
 
     # visualization
     if SHOW_VISUALIZATION:
@@ -816,7 +818,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
 def CrackClassifier(id):
 
     # get survey data
-    df_surveydata = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
+    df_surveydata = pd.read_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|')
 
     # classify the images
 
@@ -830,7 +832,7 @@ def CrackClassifier(id):
     # iterate through images
     for file in df_surveydata['ImagePath'].tolist():
 
-        img_path = os.path.join('static', file)
+        img_path = os.path.join(BASE_DIR,'static', file)
         
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -867,7 +869,7 @@ def CrackClassifier(id):
     df_surveydata['Classification'] = classes
 
     # update csv
-    df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
+    df_surveydata.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
 
     return
 
@@ -897,11 +899,11 @@ def DataConsolidation(id, rows, cols):
     dates.append(f"{year}-{month}-{day}")
 
     # map image filename
-    filename = os.path.join('static', f'map_{id}.png')
+    filename = os.path.join(BASE_DIR,'static', f'map_{id}.png')
     mapfilenames.append(filename)
 
     # survey csv filename
-    filename = os.path.join('static', f'survey_{id}.csv')
+    filename = os.path.join(BASE_DIR,'static', f'survey_{id}.csv')
     csvfilenames.append(filename)
 
     # count of cracks photo-taken
@@ -932,7 +934,7 @@ def DataConsolidation(id, rows, cols):
     new_df_sessions.to_csv('sessions.csv', sep='|', index=False)
 
     # assign flag colors
-    df = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
+    df = pd.read_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|')
 
     # Priority order mapping
     priority = {'horizontal': 1, 'diagonal': 2, 'vertical': 3, 'negative': 4}
@@ -947,7 +949,7 @@ def DataConsolidation(id, rows, cols):
     df['FlagColor'] = df.groupby('Position')['Classification'].transform(assign_flag_color)
 
     # Update the csv
-    df.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
+    df.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
 
     return
 

@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-
+import os
 from backend import *
 from consolidator import *
 
 app = Flask(__name__)
+
+BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
 
 sessioncsv = ''
 sessionmap = ''

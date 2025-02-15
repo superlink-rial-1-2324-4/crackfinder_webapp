@@ -123,10 +123,10 @@ def DataPreparation():
     id = f"{year}_{month}_{day}_{index}"
 
     # update location data csv
-    df_flowdeckdata_updated.to_csv(os.path.join(BASE_DIR,'static', f'rawloc_{id}.csv'), index=False)
+    df_flowdeckdata_updated.to_csv(os.path.join('static', f'rawloc_{id}.csv'), index=False)
     
     # create csv containing image metadata
-    df_imagedata.to_csv(os.path.join(BASE_DIR,'static', f'imagedata_{id}.csv'), index=False)
+    df_imagedata.to_csv(os.path.join('static', f'imagedata_{id}.csv'), index=False)
     
     # extract zip image contents
     with zipfile.ZipFile(myzip, 'r') as file:
@@ -165,7 +165,7 @@ def YawTransform(id):
             'Yaw': yaws,
             'Timestamp': timestamps
         })
-        df_yawtrans.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
+        df_yawtrans.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
         return
 
     # smoothen data
@@ -227,7 +227,7 @@ def YawTransform(id):
         'Yaw': yaw_retained,
         'Timestamp': timestamps
     })
-    df_yawtrans.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
+    df_yawtrans.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
     
     # visualization
     if SHOW_VISUALIZATION: 
@@ -451,7 +451,7 @@ def MapGenerate(id):
     x_simple, y_simple  = shift_shape_by_amount(x_simple, y_simple, x_shift, y_shift)
 
     # update survey data csv
-    df_flowdeckdata.to_csv(os.path.join(BASE_DIR,'static', f'yawtrans_{id}.csv'), index=False)
+    df_flowdeckdata.to_csv(os.path.join('static', f'yawtrans_{id}.csv'), index=False)
 
     # visualization
     if SHOW_VISUALIZATION:
@@ -482,7 +482,7 @@ def MapGenerate(id):
         matplotlib.use('Agg')
 
         # Create map file
-        mapfilename = os.path.join(BASE_DIR,'static', f'map_{id}.png')
+        mapfilename = os.path.join('static', f'map_{id}.png')
 
         plt.plot(x_room_origin, y_room_origin)
         plt.plot(x_simple, y_simple, '--', color='Blue')
@@ -561,18 +561,18 @@ def TimeMatch(id):
     # update the image file paths
     imagepaths = df_surveydata['ImagePath'].tolist()
     for i, imagepath in enumerate(imagepaths):
-        imagepaths[i] = os.path.join(BASE_DIR,f"images_{id}", imagepath).replace('\\', '/')
+        imagepaths[i] = os.path.join(f"images_{id}", imagepath).replace('\\', '/')
     df_surveydata['ImagePath'] = imagepaths
 
     # save the time matched dataframe to csv with proper filename
-    df_surveydata.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
+    df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
 
     # remove unmatched images from the folder
     folder_path = os.path.join(BASE_DIR,'static', f"images_{id}")
     folder_files = os.listdir(folder_path)
     for file_name in folder_files:
-        if os.path.join(BASE_DIR,f"images_{id}", file_name).replace('\\', '/') not in imagepaths:
-            file_path = os.path.join(BASE_DIR,folder_path, file_name)
+        if os.path.join(f"images_{id}", file_name).replace('\\', '/') not in imagepaths:
+            file_path = os.path.join(folder_path, file_name)
             # Ensure it's a file before deleting
             if os.path.isfile(file_path):
                 os.remove(file_path)
@@ -799,7 +799,7 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
     df_surveydata['Y'] = y_fit_room
 
     # update survey data csv
-    df_surveydata.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
+    df_surveydata.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
 
     # visualization
     if SHOW_VISUALIZATION:
@@ -829,8 +829,29 @@ def CrackClassifier(id):
     image_paths = []
     classes = []
 
+    for file in df_surveydata['ImagePath'].tolist():
+        # Check if file is an absolute path (starts with '/home/superlinkfour/crackfinder_webapp')
+        if file.startswith(BASE_DIR):  # BASE_DIR is '/home/superlinkfour/crackfinder_webapp'
+            # Extract the relative path from the BASE_DIR
+            file = file[len(BASE_DIR):]  # Remove BASE_DIR prefix from file path
+    
+        # Ensure 'static/' is part of the image path
+        if not file.startswith('static/'):
+            file = 'static/' + file  # Prepend static/ to the path if missing
+
+        # Construct the full image path
+        img_path = os.path.join(BASE_DIR, file)  # Full path to image
+
+        image_paths.append(img_path)
+
+    # Debugging: Check the final paths
+    for img_path in image_paths:
+        print(f"🚀 DEBUG: Final image path used: {img_path}")
+
     # prep the images
     images = [cv2.cvtColor(cv2.imread(os.path.join(BASE_DIR, 'static', img_path)), cv2.COLOR_BGR2RGB) for img_path in image_paths]
+    if not images:
+        raise ValueError("❌ ERROR: No images to process. Ensure image paths are valid.")
 
     # make predictions on the images
     results = model(images)
@@ -888,11 +909,11 @@ def DataConsolidation(id, rows, cols):
     dates.append(f"{year}-{month}-{day}")
 
     # map image filename
-    filename = os.path.join(BASE_DIR,'static', f'map_{id}.png')
+    filename = os.path.join('static', f'map_{id}.png')
     mapfilenames.append(filename)
 
     # survey csv filename
-    filename = os.path.join(BASE_DIR,'static', f'survey_{id}.csv')
+    filename = os.path.join('static', f'survey_{id}.csv')
     csvfilenames.append(filename)
 
     # count of cracks photo-taken
@@ -923,7 +944,7 @@ def DataConsolidation(id, rows, cols):
     new_df_sessions.to_csv('sessions.csv', sep='|', index=False)
 
     # assign flag colors
-    df = pd.read_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|')
+    df = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
 
     # Priority order mapping
     priority = {'horizontal': 1, 'diagonal': 2, 'vertical': 3, 'negative': 4}
@@ -938,7 +959,7 @@ def DataConsolidation(id, rows, cols):
     df['FlagColor'] = df.groupby('Position')['Classification'].transform(assign_flag_color)
 
     # Update the csv
-    df.to_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|', index=False)
+    df.to_csv(os.path.join('static', f"survey_{id}.csv"), sep='|', index=False)
 
     return
 

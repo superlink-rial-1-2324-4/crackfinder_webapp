@@ -1,8 +1,11 @@
 import os
 import pandas as pd
 
-# functions related to consolidation of data for the home page
+""" turn BASE_DIR to "" if testing on windows """
 BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
+#BASE_DIR = ""
+
+# functions related to consolidation of data for the home page
 
 def clear_uploads():
     for file in os.listdir('uploads'):
@@ -105,6 +108,11 @@ def get_classifications(csv_path):
     surveydata = access_surveydata(csv_path)
     classifications = surveydata['Classification'].tolist()
     return classifications
+
+def get_zvalues(csv_path):
+    surveydata = access_surveydata(csv_path)
+    zvalues = surveydata['Z'].tolist()
+    return zvalues
 
 def get_imagepaths(csv_path):
     surveydata = access_surveydata(csv_path)

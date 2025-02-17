@@ -5,13 +5,16 @@ from consolidator import *
 
 app = Flask(__name__)
 
+""" turn BASE_DIR to "" if testing on windows """
 BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
+#BASE_DIR = ""
 
 sessioncsv = ''
 sessionmap = ''
 sessionid = ''
 sessionvenue = ''
 sessiondate = ''
+sessionnotes = ''
 show_negative = 1
 
 UPLOAD_FOLDER = 'uploads'
@@ -40,15 +43,19 @@ def home():
         new_csvpt = request.form.get('sessioncsvpath', '')
         sel_venue = request.form.get('sessionvenue', '')
         sel_date = request.form.get('sessiondate', '')
+        sel_notes = request.form.get('sessionnotes', '')
         uploaded_files = request.form.get('sessionFiles', '')
         if new_csvpt:
-            global sessioncsv, sessionid, sessionmap, sessionvenue, sessiondate
+            global sessioncsv, sessionid, sessionmap, sessionvenue, sessiondate, sessionnotes
             sessioncsv = new_csvpt
             sessionvenue = sel_venue
             sessiondate = sel_date
+            sessionnotes = sel_notes
             sessionid = ids[surveycsvpaths.index(sessioncsv)]
             sessionmap = mappaths[surveycsvpaths.index(sessioncsv)].replace('\\', '\\\\')
-            return redirect(url_for('session', sessionid=sessionid, sessioncsvpath=sessioncsv, sessionmap=sessionmap, sessionvenue=sessionvenue, sessiondate=sessiondate, show_negative=show_negative))
+            return redirect(url_for('session', sessionid=sessionid, sessioncsvpath=sessioncsv, 
+                                    sessionmap=sessionmap, sessionvenue=sessionvenue, sessiondate=sessiondate, 
+                                    sessionnotes=sessionnotes, show_negative=show_negative))
         if new_venue:
             update_venues(new_venue, index)
         elif new_notes:
@@ -98,8 +105,10 @@ def session():
     sessionid = request.args.get('sessionid')
     sessionvenue = request.args.get('sessionvenue')
     sessiondate = request.args.get('sessiondate')
+    sessionnotes = request.args.get('sessionnotes')
     show_negative = request.args.get('show_negative')
     classifications = get_classifications(sessioncsvpath)
+    zvalues = get_zvalues(sessioncsvpath)
     imagepaths = get_imagepaths(sessioncsvpath)
     gridlabels = get_gridlabels(sessioncsvpath)
     positions = get_positions(sessioncsvpath)
@@ -116,7 +125,7 @@ def session():
             update_engineernotes(csv_path = sessioncsvpath, new_notes = new_notes, index = index)
         elif showneg:
             show_negative = showneg
-        return redirect(url_for('session',  sessionid=sessionid, sessioncsvpath=sessioncsvpath, sessionmap=sessionmap, show_negative=showneg))
+        return redirect(url_for('session',  sessionid=sessionid, sessioncsvpath=sessioncsvpath, sessionmap=sessionmap, sessionvenue = sessionvenue, sessiondate = sessiondate, show_negative=showneg))
 
     return render_template("session.html", 
                            sessioncsvpath = sessioncsvpath,
@@ -124,8 +133,10 @@ def session():
                            sessionid = sessionid,
                            sessionvenue = sessionvenue,
                            sessiondate = sessiondate,
+                           sessionnotes=sessionnotes,
                            show_negative=show_negative,
                            classifications = classifications,
+                           zvalues = zvalues,
                            imagepaths = imagepaths,
                            gridlabels = gridlabels,
                            positions = positions,
@@ -138,4 +149,4 @@ def session():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080)
-    #app.run(debug=True, host='127.0.0.1', port=5000)
+    #app.run(debug=True, host='127.0.0.1', port=8080)

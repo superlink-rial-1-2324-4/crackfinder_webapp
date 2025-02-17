@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CrackGPT Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -107,6 +108,21 @@
             border-color: #e4e6eb;
             color: #2d4373;
         }
+        .navbar-subtitle {
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .navbar-subtitle-link {
+            font-size: 14px; /* Adjust the size of the subtitle */
+            font-weight: lighter;
+            color: #6c757d; /* Lighter text color */
+            text-decoration: none;
+        }
+
+        .navbar-subtitle-link:hover {
+            color: #495057; /* Darker color on hover */
+        }
     </style>
 </head>
 <body>
@@ -122,7 +138,9 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+            <div class="navbar-subtitle">
+                <a href="/" class="navbar-subtitle-link">Crack Grid Positional Tracker</a>
+            </div>
         </div>
     </nav>
 
@@ -156,10 +174,10 @@
         </div>
 
         <h2 class="mb-4">Sessions</h2>
-        <div class="row">
+        <div class="row align-items-stretch">
             {% for i in range(dates|length) %}
             <div class="col-md-4 mb-4">
-                <div class="card session-card">
+                <div class="card session-card d-flex flex-column h-100">
                     <h5>{{dates[i]}} survey</h5>
                     <p><strong>{{crackcounts[i]}} cracks detected</strong></p>
                     <p>Venue: {{venues[i]}} <button type="button" class="btn btn-sm btn-secondary" data-toggle="modal" data-target="#venueEditModal{{i}}">Edit</button></p>
@@ -170,6 +188,7 @@
                             <input type="hidden" name="sessioncsvpath" value="{{surveycsvpaths[i]}}">
                             <input type="hidden" name="sessionvenue" value="{{venues[i]}}">
                             <input type="hidden" name="sessiondate" value="{{dates[i]}}">
+                            <input type="hidden" name="sessionnotes" value="{{notes[i]}}">
                         </div>
                         <br>
                         <button type="submit" class="btn btn-primary">View Report</button>
@@ -208,15 +227,33 @@
                       <h5 class="modal-title" id="notesEditModalLabel{{i}}">Edit notes of {{dates[i]}} survey</h5>
                     </div>
                     <div class="modal-body">
-                      <form method="POST">
-                        <div class="form-group">
-                            <label for="current_notes{{i}}">Update notes:</label>
-                            <input type="text" class="form-control" id="current_notes{{i}}" name="new_notes" placeholder="Add a note" value='{{notes[i]}}' required>
-                            <input type="hidden" name="index" value="{{ i }}">
-                        </div>
-                        <br>
-                        <button type="submit" class="btn btn-primary">Save changes</button>
-                    </form>
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="dropdown" class="form-label">Select status:</label>
+                                <select class="form-select" id="dropdown" name="new_notes">
+                                    <option value="No Issues Detected">No Issues Detected</option>
+                                    <option value="Minor Repairs Required">Minor Repairs Required</option>
+                                    <option value="Major Repairs Required">Major Repairs Required</option>
+                                    <option value="Structural Retrofitting Recommended">Structural Retrofitting Recommended</option>
+                                    <option value="Unsafe - Requires Immediate Evacuation">Unsafe - Requires Immediate Evacuation</option>
+                                    <option value="Schedule for Demolition">Schedule for Demolition</option>
+                                    <option value="Condemned - Unsafe for Use">Condemned - Unsafe for Use</option>
+                                </select>
+                                <input type="hidden" name="index" value="{{ i }}">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Submit selection</button>
+                        </form>
+                        <form method="POST">
+                            <div class="form-group">
+                                <br>
+                                <label for="current_notes{{i}}">... or provide in text below:</label>
+                                
+                                <input type="text" class="form-control" id="current_notes{{i}}" name="new_notes" placeholder="Add a note" value='{{notes[i]}}' required>
+                                <input type="hidden" name="index" value="{{ i }}">
+                            </div>
+                            <br>
+                            <button type="submit" class="btn btn-primary">Submit text</button>
+                        </form>
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>

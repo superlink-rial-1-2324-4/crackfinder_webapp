@@ -21,7 +21,9 @@ SCALE_YAW = 1
 THRESHOLD_YAW = 0.5
 DISTANCE_TO_WALL = 0.5
 
+""" turn BASE_DIR to "" if testing on windows """
 BASE_DIR = "/home/superlinkfour/crackfinder_webapp"
+#BASE_DIR = ""
 
 # global variables
 x_flight_path_origin = 0
@@ -556,7 +558,7 @@ def TimeMatch(id):
     df_surveydata['Classification'] = 'unclassified'
     df_surveydata['GridLabel'] = 0
     df_surveydata['BooleanShow'] = 1
-    df_surveydata['Notes'] = 'This is a note.'
+    df_surveydata['Notes'] = '-'
 
     # update the image file paths
     imagepaths = df_surveydata['ImagePath'].tolist()
@@ -623,28 +625,6 @@ def GridAssign(id, x_corners, y_corners, x_room, y_room):
 
         # Retrieve label
         return grid_labels.get((nearest_x, nearest_y), None)
-
-    def rotate_points(x_coords, y_coords, angle, center):
-        """Rotate points by a given angle around a center point."""
-        # Combine x and y coordinates into a 2D array
-        points = np.array(list(zip(x_coords, y_coords)))
-
-        # Rotation matrix for 2D
-        rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
-                                    [np.sin(angle), np.cos(angle)]])
-        
-        # Center the points around the rotation center
-        centered_points = points - center
-        rotated_points = np.dot(centered_points, rotation_matrix.T)
-        
-        # Translate the rotated points back to the original position
-        rotated_points += center
-
-        # Extract the rotated x and y coordinates as separate lists
-        rotated_x = rotated_points[:, 0].tolist()
-        rotated_y = rotated_points[:, 1].tolist()
-
-        return rotated_x, rotated_y
 
     # load detected crack data
     df_surveydata = pd.read_csv(os.path.join(BASE_DIR,'static', f"survey_{id}.csv"), sep='|')
@@ -830,6 +810,7 @@ def CrackClassifier(id):
     classes = []
 
     for file in df_surveydata['ImagePath'].tolist():
+        break
         # Check if file is an absolute path (starts with '/home/superlinkfour/crackfinder_webapp')
         if file.startswith(BASE_DIR):  # BASE_DIR is '/home/superlinkfour/crackfinder_webapp'
             # Extract the relative path from the BASE_DIR
@@ -849,7 +830,8 @@ def CrackClassifier(id):
         print(f"🚀 DEBUG: Final image path used: {img_path}")
 
     # prep the images
-    images = [cv2.cvtColor(cv2.imread(os.path.join(BASE_DIR, 'static', img_path)), cv2.COLOR_BGR2RGB) for img_path in image_paths]
+    image_paths = df_surveydata['ImagePath'].tolist()
+    images = [cv2.cvtColor(cv2.imread(os.path.join(BASE_DIR, 'static', img_path)), cv2.COLOR_BGR2RGB) for img_path in df_surveydata['ImagePath'].tolist()]
     if not images:
         raise ValueError("❌ ERROR: No images to process. Ensure image paths are valid.")
 
@@ -947,8 +929,14 @@ def DataConsolidation(id, rows, cols):
     df = pd.read_csv(os.path.join('static', f"survey_{id}.csv"), sep='|')
 
     # Priority order mapping
+    """
+    red - #D32F2F
+    orange - #F57C00
+    yellow - #FFC107
+    green - #388E3C
+    """
     priority = {'horizontal': 1, 'diagonal': 2, 'vertical': 3, 'negative': 4}
-    color_mapping = {1: '#D32F2F', 2: '#F57C00', 3: '#F57C00', 4: '#388E3C'}
+    color_mapping = {1: '#D32F2F', 2: '#F57C00', 3: '#FFC107', 4: '#388E3C'}
 
     # Function to get the flag color for each unique position
     def assign_flag_color(classifications):

@@ -7,11 +7,47 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
-
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
     <style>
         body {
             background-color: #f8f9fa;
+        }
+        .flag-legend {
+            margin: 20px;
+        }
+
+        .flag-legend h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .flag-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* Creates 4 equal columns */
+            gap: 10px; /* Space between items */
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .flag-grid li {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .flag-buttonx {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: default; /* Prevents clicking */
+            display: flex;
+            align-items: center;
+        }
+
+        .flag-buttonx i {
+            margin-right: 5px;
         }
         .image-container {
             display: flex;
@@ -19,6 +55,21 @@
             align-items: center;
             height: 220px; /* Set your desired height */
             overflow-y: auto; /* Enable vertical scrolling if content overflows */
+        }
+        .stats-card {
+            background-color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .stats-card h2 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #3b5998;
+            margin-bottom: 5px;
+        }
+        .stats-card p {
+            color: #65676b;
+            font-size: 0.9rem;
         }
         .centered-image {
             max-height: 100%; /* Scale image to fit the container height */
@@ -59,9 +110,37 @@
         .flag-button:hover {
             color: white; /* Darker icon color on hover */
         }
+        .flag-legend {
+            margin: 20px;
+        }
+
+        .flag-legend h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .flag-legend ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .flag-legend li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .flag-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+        }
         .map-container {
             height: 400px;
-            background-image: url({{sessionmap}}); /* Add this line */
+            -webkit-print-color-adjust: exact; /* For Safari/Chrome */
+            print-color-adjust: exact; /* Standard */
+            background-image: url({{sessionmap}}) !important; /* Ensure background prints */
             background-size: 100% 100%;
             background-position: center; /* Center the image */
             background-repeat: no-repeat; /* Prevent the image from repeating */
@@ -105,6 +184,21 @@
             font-weight: bold;
             color: #3b5998 !important;
         }
+        .navbar-subtitle {
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        .navbar-subtitle-link {
+            font-size: 14px; /* Adjust the size of the subtitle */
+            font-weight: lighter;
+            color: #6c757d; /* Lighter text color */
+            text-decoration: none;
+        }
+
+        .navbar-subtitle-link:hover {
+            color: #495057; /* Darker color on hover */
+        }
     </style>
 </head>
 <body>
@@ -115,16 +209,39 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+            <div class="navbar-subtitle">
+                <a href="/" class="navbar-subtitle-link">Crack Grid Positional Tracker</a>
+            </div>
         </div>
     </nav>
 
+
     <div class="container mt-4">
         <h1 class="mb-4">Session View</h1>
-        Venue: {{sessionvenue}}
-        Date: {{sessiondate}}
-        <br>
-        <br>
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card d-flex flex-column h-100">
+                    <p><strong>Venue</strong></p>
+                    {% if sessionvenue and sessionvenue != "None added." %}
+                        <p>{{sessionvenue}}</p>
+                    {% else %}
+                        <p>Please indicate the session venue on the dashboard.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card d-flex flex-column h-100">
+                    <p><strong>Date</strong></p>
+                    <p>{{sessiondate}}</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card stats-card d-flex flex-column h-100">
+                    <p><strong>Notes</strong></p>
+                    <p>{{sessionnotes}}</p>
+                </div>
+            </div>
+        </div>
         
         <div class="row d-flex align-items-stretch">
             <div class="col-md-8">
@@ -136,7 +253,7 @@
                                 {% for i in range(area) %}
                                 <div class="grid-cell" data-cell-id="{{ i }}">
                                     {% for gridpoint in gridlabels %}
-                                        {% if gridpoint == i and ((classifications[loop.index0] not in ["negative"]) or (show_negative == "Show"))%}
+                                        {% if gridpoint == i and ((classifications[loop.index0] |capitalize not in ["Negative"]) or (show_negative == "Show"))%}
 
                                         <button class="flag-button" style="color: {{ flagcolors[gridlabels.index(gridpoint)] }};" data-bs-toggle="modal" data-bs-target="#flagModal{{i}}" data-flag-id="flagModal{{i}}">
                                             {{positions[gridlabels.index(gridpoint)]}}<i class="fa fa-flag"></i>
@@ -153,17 +270,22 @@
                                                         <div class="modal-body">
                                                             {% for gridpoint_inner in gridlabels %}
                                                             {% if gridpoint == gridpoint_inner %}
-                                                            {% if ((classifications[loop.index0] not in ["negative"]) or (show_negative == "Show"))%}
+                                                            {% if ((classifications[loop.index0] |capitalize not in ["Negative"]) or (show_negative == "Show"))%}
                                                             <div class="row">
                                                                 <div class="col-md-6">
-                                                                    {% if classifications[loop.index0] != "origin" %}
-                                                                        <img src="{{ url_for('static', filename=imagepaths[loop.index0]) }}" alt="Flag Image" class="img-fluid">
+                                                                    {% if classifications[loop.index0] |capitalize != "origin" %}
+                                                                        <img src="{{ url_for('static', filename=imagepaths[loop.index0]) }}" alt="Flag Image" class="img-fluid" loading="lazy">
                                                                     {% else %}
-                                                                        <img src="{{ url_for('static', filename="drone.jpg") }}" alt="Drone Image" class="img-fluid">
+                                                                        <img src="{{ url_for('static', filename="drone.jpg") }}" alt="Drone Image" class="img-fluid" loading="lazy">
                                                                     {% endif %}
                                                                 </div>
                                                                 <div class="col-md-6">
-                                                                    <p><strong>Class: {{classifications[loop.index0]}}</strong> <span id="modalClass"></span></p>
+                                                                    {% if classifications[loop.index0] |capitalize != "Negative" %}
+                                                                    <p>Wall crack orientation:<strong> {{classifications[loop.index0] | capitalize}}</strong> <span id="modalClass"></span></p>
+                                                                    {% else %}
+                                                                    <p><strong>No wall crack detected.</strong> <span id="modalClass"></span></p>
+                                                                    {% endif %}
+                                                                    <p>Image taken at <strong>{{zvalues[loop.index0] | round(2)}} meters</strong>  high.</p>
                                                                     <p><strong>Notes: </strong> <span id="modalNotes"></span></p>
                                                                     <form method="POST">
                                                                         <div class="form-group">
@@ -205,10 +327,10 @@
                                 <form action="" method="POST">
                                     <button type="submit" class="btn btn-sm btn-primary">
                                         {% if show_negative == "Show" %}
-                                            Hide Negative Images
+                                            Hide Unflagged Images
                                             <input type="hidden" name="showneg" value="x">
                                         {% else %}
-                                            Show Negative Images
+                                            Show Unflagged Images
                                             <input type="hidden" name="showneg" value="Show">
                                         {% endif %}
                                     </button>
@@ -224,10 +346,10 @@
                                 <th></th>
                             </tr>
                             {% for i in range(classifications|length) %}
-                            {% if ((classifications[loop.index0] not in ["negative"]) or (show_negative == "Show"))%}
+                            {% if ((classifications[loop.index0] |capitalize not in ["Negative"]) or (show_negative == "Show"))%}
                             <tr>
                                 <td>{{ positions[i] }}</td>
-                                <td>{{ classifications[i] }}</td>
+                                <td>{{ classifications[i] | capitalize }}</td>
                                 <td>{{ notes[i] }}</td>
                                 <td><button type="button" class="btn btn-sm btn-secondary" data-toggle="modal" data-target="#notesEditModal{{i}}">Edit</button></td>
                             </tr>
@@ -240,10 +362,10 @@
                                     </div>
                                     <div class="modal-body">
                                         <div class="image-container">
-                                            {% if classifications[loop.index0] != "origin" %}
-                                                <img src="{{ url_for('static', filename=imagepaths[loop.index0]) }}" alt="Flag Image" class="img-fluid">
+                                            {% if classifications[loop.index0] |capitalize != "origin" %}
+                                                <img src="{{ url_for('static', filename=imagepaths[loop.index0]) }}" alt="Flag Image" class="img-fluid" loading="lazy">
                                             {% else %}
-                                                <img src="{{ url_for('static', filename="drone.jpg") }}" alt="Flag Image" class="img-fluid">
+                                                <img src="{{ url_for('static', filename="drone.jpg") }}" alt="Flag Image" class="img-fluid" loading="lazy">
                                             {% endif %}
                                         </div>  
                                     <form method="POST">
@@ -270,6 +392,37 @@
                 </div>
             </div>
         </div>
+
+        <div class="container mt-4">
+            <div class="card stats-card">
+                <div class="flag-legend">
+                    <h4>Flag Color Legend</h4>
+                    <ul class="flag-grid">
+                        <li>
+                            <button class="flag-buttonx" style="color: #D32F2F;">
+                                <i class="fa fa-flag"></i> <strong>Horizontal Crack</strong>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="flag-buttonx" style="color: #F57C00;">
+                                <i class="fa fa-flag"></i> <strong>Diagonal Crack</strong>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="flag-buttonx" style="color: #FFC107;">
+                                <i class="fa fa-flag"></i> <strong>Vertical Crack</strong>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="flag-buttonx" style="color: #388E3C;">
+                                <i class="fa fa-flag"></i> <strong>Non-critical</strong>
+                            </button>
+                        </li>
+                    </ul>
+                </div>        
+            </div>
+        </div>
+        <br>
     </div>
     
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
